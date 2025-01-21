@@ -1,11 +1,11 @@
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === 'checkPrice') {
-    handlePriceCheck(request.url).then(sendResponse);
+  if (request.action === 'getStockData') {
+    handleStockData(request.url, request.needsName).then(sendResponse);
     return true;
   }
 });
 
-async function handlePriceCheck(url: string): Promise<string> {
+async function handleStockData(url: string, needsName: boolean): Promise<{ price: string; name?: string }> {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     
@@ -20,19 +20,43 @@ async function handlePriceCheck(url: string): Promise<string> {
       });
     });
     
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise(resolve => setTimeout(resolve, 2000));
     
     const [result] = await chrome.scripting.executeScript({
       target: { tabId: tab.id! },
-      func: () => {
+      func: (getNeedName) => {
+        const data: { price: string | null; name?: string } = {
+          price: null
+        };
+
         const priceElement = document.querySelector('[data-testid="qsp-price"]');
-        return priceElement ? priceElement.textContent : null;
-      }
+        data.price = priceElement?.textContent || null;
+
+        //if (getNeedName) {
+          const titleElement = document.querySelectorAll('h1')[1];
+          if (titleElement) {
+            const titleText = titleElement.textContent || '';
+            const match = titleText.match(/^[^-]+ - (.+)$/);
+            data.name = match ? match[1].trim() : titleText.trim();
+          }
+        //}
+
+        return data;
+      },
+      args: [needsName]
     });
     
-    return result.result || 'Price not found';
+    if (!result.result.price) {
+      //throw new Error(`Price not found for symbol`);
+      result.result.price = `Price not found for symbol`;
+    }
+
+    return {
+      price: result.result.price,
+      name: result.result.name
+    };
   } catch (error) {
-    console.error('Error checking price:', error);
-    throw error;
+    // Ensure error propagates to the hook
+    throw new Error(error instanceof Error ? error.message : 'Unknown error');
   }
 }

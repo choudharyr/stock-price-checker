@@ -6,7 +6,8 @@
   "permissions": [
     "activeTab",
     "scripting",
-    "sidePanel"
+    "sidePanel",
+    "storage"
   ],
   "host_permissions": [
     "https://finance.yahoo.com/*"
